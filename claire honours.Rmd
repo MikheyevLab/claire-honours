@@ -1,0 +1,37 @@
+---
+title: "Copper analysis"
+author: "Sasha Mikheyev"
+date: "4/27/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+suppressPackageStartupMessages(library(tidyverse))
+library(brms)
+library(readxl)
+library(brms)
+library(tidybayes)
+```
+
+```{r readData}
+dat <- as.data.frame(read_excel("data/30h.xlsx") %>% select(treatment, cage, total, alive))
+dat2 <- data.frame(alive = numeric(), cage = factor(), treatment = factor())
+for (i in 1:nrow(dat)) {
+  for (j in 1:dat[i,"alive"])
+    dat2 <- rbind(dat2, data.frame(alive=1, cage=dat[i,"cage"], treatment = dat[i,"treatment"]))
+  for (j in 1:(dat[i, "total"] - dat[i, "alive"]))
+    dat2 <- rbind(dat2, data.frame(alive=0, cage=dat[i,"cage"], treatment = dat[i,"treatment"]))
+}
+```
+
+```{r}
+priors <- c(prior(student_t(3,0,2.5), class = "b"))
+fullModel <- brm(alive ~ 0 + cage2, data = mutate(dat2, cage2 = paste(treatment, cage)), family= bernoulli(), control = list(adapt_delta = .99), iter = 5000, cores = 4, prior = priors)
+summary(fullModel)
+(hyp <- hypothesis(fullModel, c(high = "cage2Copper_High1 + cage2Copper_High2 + cage2Copper_High3 + cage2Copper_High4 = cage2Control1 + cage2Control2 + cage2Control3 + cage2Control4",
+           low = "cage2Copper_Low1 + cage2Copper_Low2 + cage2Copper_Low3 + cage2Copper_Low4 = cage2Control1 + cage2Control2 + cage2Control3 + cage2Control4",
+           no = "cage2NoMicrobiome1 + cage2NoMicrobiome2 + cage2NoMicrobiome3 + cage2NoMicrobiome4 = cage2Control1 + cage2Control2 + cage2Control3 + cage2Control4")))
+
+as_tibble(hyp$samples) %>% select(`high copper` = H1, `low copper` = H2, `no microbiome` = H3) %>% gather(key = "contrast", value = "b") %>% group_by(contrast) %>%  ggplot(aes(x = contrast, y=b)) + stat_halfeye(point_interval = mode_hdi, .width = c(.66, .95)) + geom_hline(yintercept = 0, color = "red") + theme_minimal() + theme(axis.title.x = element_blank(), plot.margin = unit(c(.5,.5,.5,.5), "cm"), axis.text.x = element_text(angle=45, hjust=1)) + coord_trans(limy=c(-20,15)) + ylab(expression("\t\tBayes factor difference between\nsurvial in treatment and control groups"))
+
+```
