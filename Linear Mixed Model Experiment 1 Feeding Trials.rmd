@@ -1,38 +1,41 @@
 #'Pollen Consumption
 #'Load Packages
-​
+```{r}
 library(tidyverse)
 library(readxl)
 library(lmerTest)
 library(emmeans)
 library(performance)
-​
+```
 #' Import data file
+
+```{r}
 pollen <- read_excel("FeedingBehaviour.xlsx", sheet="Pollen") %>%
   pivot_longer(cols = starts_with("Day "),
                names_to = "Day",
                names_prefix = "Day ",
                values_to = "pollen") %>%
   mutate(Day = factor(Day, levels = c(2,3,4,5,6,7,8,9,10)))
-view(pollen)
-​
+#view(pollen)
+
 #' ## Visualise data
 plot1 <- ggplot(pollen, aes(Day, pollen, col = Treatment)) +
   geom_boxplot()
 print(plot1)
-​
+```
 #' Pretty Version
+```{r}
 Treatmentplot <- ggplot(pollen, aes(Day, pollen, col = Treatment)) +
     geom_boxplot(size=0.5, width=1) + coord_cartesian(xlim=c(0,10), ylim=c(0,0.020)) + 
     ggtitle("Pollen Consumption") + labs(y="Consumption per bee (mg)", x="Day")+
   print(Treatmentplot)
-​
+
 #' Visualise by Day
 plot2 <- ggplot(pollen, aes(Treatment, pollen, col = Treatment)) +
   geom_point() +
   facet_wrap(~Day) +theme_bw() + theme(axis.text.x = element_text(angle = 90)) +
   print(plot2)
-​
+
 a1 <- aov(pollen ~ Treatment, data= pollen)
 summary(a1)
 # Treatment is non significant
@@ -42,7 +45,7 @@ summary(a2)
 a3 <- aov(pollen ~ Day, data= pollen)
 summary(a3)
 # Day is signficant 
-​
+
 #' ## Fit model to data - Looking for things impacting residuals
 treatment <- lm(pollen ~ Treatment, data = pollen)
 Day <- lm(pollen ~ Day, data = pollen)
@@ -76,18 +79,18 @@ anova(Cage)
 check_model(lmer1)
 #' lmer result
 #' Data looks pretty good, no issues in homoscendascity test, the model is not missing any relationships
-​
+
 #' lmer model means and SE
 emmeans(lmer1, ~Treatment|Day)
 result1 <- summary(emmeans(lmer1,~Treatment|Day))
-​
+
 #Summary statistics from model in plot
 ggplot(result1, aes(x=Treatment, y=emmean, colour = Treatment)) +
   geom_point()+
   geom_errorbar(aes(ymax = emmean+SE, ymin = emmean-SE), width = .3)+
   facet_wrap(~Day) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))
-​
+
 #' lmer model means and SE looking at effect of Day
 emmeans(lmer1, ~Day|Treatment)
 result2 <- summary(emmeans(lmer1,~Day*Treatment))
@@ -97,7 +100,7 @@ ggplot(result2, aes(x=Treatment, y=emmean, colour = Treatment)) +
   geom_errorbar(aes(ymax = emmean+SE, ymin = emmean-SE), width = .3)+
   facet_wrap(~Day) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90))
-​
+
 # Pretty version of means plot
 lmerplot <- ggplot(result2, aes(x=Treatment, y=emmean, colour = Treatment)) +
   geom_point()+
@@ -106,3 +109,4 @@ lmerplot <- ggplot(result2, aes(x=Treatment, y=emmean, colour = Treatment)) +
   theme_bw() + theme(axis.text.x = element_text(angle = 90)) + 
   ggtitle("Pollen Consumption of Lmer Model") + labs(y="Consumption per bee (mg)") +
   print(lmerplot)
+```
