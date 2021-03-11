@@ -1,0 +1,17 @@
+﻿,12hrs,15hrs,18hrs,21hrs,24hrs,30hrs,Total_Alive_Treatment
+Control 1,0,0,2,6,8,10,21
+Control 2,3,5,7,7,9,12,18
+Control 3,2,3,7,7,7,8,12
+Control 4,0,1,1,4,7,9,16
+Copper low 1,6,6,7,8,10,10,19
+Copper low 2,0,0,0,0,3,3,19
+Copper low 3,0,0,0,3,3,6,25
+Copper low 4,0,0,1,4,5,8,24
+Copper high 1,1,1,2,3,6,6,16
+Copper high 2,0,0,0,2,5,8,23
+Copper high 3,0,2,3,6,7,7,19
+Copper high 4,0,0,0,2,6,7,20
+No microbiome 1,2,2,4,4,7,10,20
+No microbiome 2,0,0,1,3,3,6,14
+No microbiome 3,4,9,12,13,14,14,22
+No microbiome 4,0,0,1,2,2,6,12
