@@ -1,0 +1,118 @@
+---
+title: "Experiment 1: Feeding Behaviour Sucrose Consumption"
+author: "Claire"
+date: "March 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Load Packages
+
+```{r libraries, message = FALSE}
+library(tidyverse)
+library(readxl)
+library(lmerTest)
+library(emmeans)
+library(performance)
+library(dplyr)
+library(Rmisc)
+```
+
+#' Import data and check structure
+```{r}
+sucrose <- read_excel("DataGit/FeedingBehaviour.xlsx", sheet="Sucrose") %>%
+  pivot_longer(cols = starts_with("Day "),
+               names_to = "Day",
+               names_prefix = "Day ",
+               values_to = "sucrose") %>%
+  mutate(Day = factor(Day, levels = c(1,2,3,4,5,6,7,8,9,10)))
+```
+#' ## Visualise data
+```{r}
+ggplot(sucrose, aes(Day, sucrose, col = Treatment)) +
+  geom_boxplot() 
+```
+#' Remove largest value, likely error, and re-run
+```{r}
+sucrose %>%
+  filter(sucrose <0.3) %>%
+  ggplot(sucrose, mapping = aes(Day, sucrose, colour = Treatment)) +
+  geom_boxplot()
+```
+#' Pretty Version
+```{r}
+ggplot(sucrose, aes(Day, sucrose, colour = Treatment)) +
+  geom_boxplot() + coord_cartesian(ylim=c(0,0.25)) +
+  ggtitle("Sucrose Consumption") + labs(y="Consumption per bee (mg)", x="Day")
+```
+#' Visualise by Day
+```{r}
+ggplot(sucrose, aes(Treatment, sucrose, colour = Treatment)) +
+  geom_point() +
+  facet_wrap(~Day) +theme_bw() + theme(axis.text.x = element_text(angle = 90))
+```
+#' ## Fit movel to data
+#' lm model with and without Day effect
+```{r}
+slm1 <- lm(sucrose~Treatment + factor(Cage), data=sucrose)
+summary(slm1)
+slm2 <- lm(sucrose~Treatment*Day + factor(Cage), data=sucrose)
+summary(slm2)
+anova(slm1, slm2)
+```
+# Using the Linear Mixed Modelling - Lmer
+#' lmr compare with and without time effect
+```{r}
+slmer1<- lmer(sucrose~Treatment*Day + (1|Cage), data = sucrose)
+slmer2<- lmer(sucrose~Treatment + (1|Cage), data = sucrose)
+anova(slmer1, slmer2)
+```
+#' Lmer Model with Day as an interaction 
+```{r}
+slmer1<- lmer(sucrose~Treatment*Day + (1|Cage), data = sucrose)
+summary(slmer1)
+anova(slmer1)
+```
+
+#' lmer model assumptions   
+```{r}
+check_model(slmer1)
+```
+
+#' lmer result
+
+# lmer model means and SE
+```{r}
+emmeans(slmer1, ~Treatment|Day)
+sresult1 <- summary(emmeans(slmer1,~Treatment|Day))
+```
+
+#Summary statistics from model in plot
+```{r}
+ggplot(sresult1, aes(x=Treatment, y=emmean, colour = Treatment)) +
+  geom_point()+
+  geom_errorbar(aes(ymax = emmean+SE, ymin = emmean-SE), width = .3)+
+  facet_wrap(~Day) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))
+```
+#' lmer model means and SE looking at effect of Day
+```{r}
+emmeans(slmer1, ~Day|Treatment)
+sresult2 <- summary(emmeans(slmer1,~Day*Treatment))
+```
+
+#'
+```{r}
+
+ggplot(sresult2, aes(x=Treatment, y=emmean, colour = Treatment)) +
+  geom_point()+
+  geom_errorbar(aes(ymax = emmean+SE, ymin = emmean-SE), width = .3)+
+  facet_wrap(~Day) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))
+```
+
+
+

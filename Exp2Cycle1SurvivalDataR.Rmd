@@ -1,0 +1,99 @@
+---
+  title: "Experiment 2: Cycle 1 Survival Data"
+author: "Claire Howard-Bryan"
+date: "March 2021"
+output: html_document
+---
+
+## Cycle 1 6 days of survival data - file "SurvivaldataCycle1R"
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Load Packages
+
+```{r libraries, message = FALSE}
+library(readr)
+library(tidyverse)
+library(emmeans)
+library(dplyr)
+library(Rmisc)
+library(glmmTMB)
+library(car)
+library(lmerTest)
+library(ggResidpanel)
+```
+
+## Import data and check data structure
+
+```{r import_data, message = FALSE}
+C1R <- read_csv("DataGit/SurvivalDataCycle1R.csv")
+str(C1R)
+```
+
+## Data Structure
+##Reponse variable 
+#= Percent_survived: Percent of individual bees alive at time point, cage specific based on total number of bees alive at start of treatment
+##Factors 
+#= Day: Survival data collected over a 6 day period
+#= Treatment: 3 levels of treatments - Control, High_Copper, Low_Copper
+#= Cage: 4 Cages as replicate per treatment, numbered 1-4
+
+##Visualize Data
+#Initial plot = Seperated by treatment with each cage coloured
+```{r check_observations}
+ggplot(C1R, aes(x = day, y = percent_survived, colour = factor(cage)))+
+  geom_line(aes(group=cage))+
+  facet_wrap(~treatment)+
+  theme(legend.position = "top")
+```  
+#Observations
+(1) Cage variation within Treatments
+(2) Once cage starts reducing in numbers, continues at faster rate - Experimental design
+(3) All Treatments follow a downward pattern in survival with time 
+
+## Summary Statistics
+```{r}
+StatsC1R <- summarySE(C1R, measurevar="percent_survived", groupvars=c("treatment","day"))
+```
+
+## First Plot Grouping by Treatment - Cages pooled
+```{r}
+ggplot(data=StatsC1R, aes(x=day, y=percent_survived, group = treatment, colour = treatment)) + geom_line() + geom_point()
+```
+# Plot with Error Bars
+```{r}
+ggplot(data=StatsC1R, aes(x=day, y=percent_survived, group = treatment, colour = treatment)) +
+  geom_errorbar(aes(ymin=percent_survived-se, ymax=percent_survived+se)) +
+  geom_errorbar(aes(ymin=percent_survived-sd, ymax=percent_survived+sd), width=.3, size=1.1) +
+  geom_line()
+```
+# Plot with Standard Error
+```{r}
+ggplot(data=StatsC1R, aes(x=day, y=percent_survived, group = treatment, colour = treatment)) +
+  geom_errorbar(aes(ymin=percent_survived-se, ymax=percent_survived+se)) +
+  geom_line() + geom_point()
+```
+## Data Exploration - Plot by Treatment/Cage
+```{r}
+ggplot(StatsC1R, aes(x = day, y = percent_survived, colour = treatment))+
+  facet_wrap(~treatment)+
+  theme(legend.position = "top")+
+  geom_errorbar(aes(ymin=percent_survived-se, ymax=percent_survived+se), width=0.5, size=0.5) +
+  geom_point(size=3) + geom_line(size=1)
+```
+## Fit model 
+```{r}
+mod1 <- glmmTMB(cbind(alive,dead)~treatment*day + (1|cage:treatment), data = C1R, family = binomial(link = "logit"))
+```
+## ANOVA Table
+```{r}
+Anova(mod1)
+```
+# Descibe the effects
+
+## Assess model assumptions with residual plots
+```{r model_assessment}
+resid_panel(mod1)
+```

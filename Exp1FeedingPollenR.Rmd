@@ -1,0 +1,144 @@
+---
+title: "Experiment 1: Feeding Behaviour Pollen Consumption"
+author: "Claire"
+date: "March 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Load Packages
+
+```{r libraries, message = FALSE}
+library(tidyverse)
+library(readxl)
+library(lmerTest)
+library(emmeans)
+library(performance)
+library(dplyr)
+library(Rmisc)
+```
+
+#' Import data and check structure
+
+```{r}
+pollen <- read_excel("DataGit/FeedingBehaviour.xlsx", sheet="Pollen") %>%
+  pivot_longer(cols = starts_with("Day "),
+               names_to = "Day",
+               names_prefix = "Day ",
+               values_to = "pollen") %>%
+  mutate(Day = factor(Day, levels = c(2,3,4,5,6,7,8,9,10)))
+str(pollen)
+```
+#' Visualise data - First Plot
+```{r}
+ggplot(pollen, aes(Day, pollen, col = Treatment)) +
+  geom_boxplot()
+```
+#' Visualize Data
+```{r}
+ggplot(pollen, aes(Day, pollen, col = Treatment)) +
+    geom_boxplot(size=0.5, width=1) + coord_cartesian(xlim=c(0,10), ylim=c(0,0.020)) + 
+    ggtitle("Pollen Consumption") + labs(y="Consumption per bee (mg)", x="Day")
+```
+## Observations
+
+## Visualise by Day
+```{r}
+ggplot(pollen, aes(Treatment, pollen, col = Treatment)) +
+  geom_point() +
+  facet_wrap(~Day) +theme_bw() + theme(axis.text.x = element_text(angle = 90))
+```
+#' Visualise 
+```{r}
+ggplot(pollen, aes(Day, pollen, col = Treatment)) +
+  geom_point() +
+  facet_wrap(~Treatment) +theme_bw() + theme(axis.text.x = element_text(angle = 90))
+```
+## plot
+```{r}
+ggplot(pollen, aes(x = Day, y = pollen, colour = factor(Cage)))+
+  geom_line(aes(group=Cage))+
+  facet_wrap(~Treatment)+
+  theme(legend.position = "top")
+```
+
+
+## Fit an analysis of Variance Model
+## Fit model to data - Looking for things impacting residuals
+```{r}
+treatment <- lm(pollen ~ Treatment, data = pollen)
+Cage <- lm(pollen ~ Cage, data = pollen)
+Day <- lm(pollen ~ Day, data = pollen)
+anova(treatment)
+anova(Cage)
+anova(Day)
+```
+## Observations
+## Testing each variable with a one-way ANOVA of the lm model has shown only 
+# Day to have a significant Pr(>F) value
+# This is consistent with the visual trend shown in first plot
+
+## Day must be accounted for as interaction from here
+##' lm model with (lm2) and without cage effect (lm1)
+```{r}
+lm1 <- lm(pollen~Treatment*Day, data=pollen)
+  lm2 <- lm(pollen~Treatment*Day + factor(Cage), data=pollen)
+  anova(lm1)
+  anova(lm2)
+  anova(lm1, lm2)
+```
+# This seems to suggest that adding cage as a factor is significant
+  
+##' lmr compare with and without time effect
+```{r}
+lmer1<- lmer(pollen~Treatment*Day + (1|Cage), data = pollen)
+  lmer2<- lmer(pollen~Treatment + (1|Cage), data = pollen)
+  anova(lmer1, lmer2)
+```
+#significant difference with and without time effect as expected
+  
+# Now we know what need to be in our Linear Mixed model
+```{r}
+  lmer1<- lmer(pollen~Treatment*Day + (1|Cage), data = pollen)
+  summary(lmer1)
+  anova(lmer1)
+```
+#' lmer model assumptions   
+```{r}
+check_model(lmer1)
+```
+
+#' lmer result
+#' Data looks pretty good, no issues in homoscendascity test, the model is not missing any relationships
+
+#' lmer model means and SE
+```{r}
+emmeans(lmer1, ~Treatment|Day)
+result1 <- summary(emmeans(lmer1,~Treatment|Day))
+```
+#Summary statistics from model in plot
+```{r}
+ggplot(presult1, aes(x=Treatment, y=emmean, colour = Treatment)) +
+  geom_point()+
+  geom_errorbar(aes(ymax = emmean+SE, ymin = emmean-SE), width = .3)+
+  facet_wrap(~Day) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90))
+```
+#' lmer model means and SE looking at effect of Day
+```{r}
+emmeans(lmer1, ~Day|Treatment)
+result2 <- summary(emmeans(lmer1,~Day*Treatment))
+```
+#
+```{r}
+ggplot(result2, aes(x=Treatment, y=emmean, colour = Treatment)) +
+  geom_point()+
+  geom_errorbar(aes(ymax = emmean+SE, ymin = emmean-SE), width = .3)+
+  facet_wrap(~Day) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90)) + 
+  ggtitle("Pollen Consumption of Lmer Model") + labs(y="Consumption per bee (mg)")
+```
+
