@@ -1,0 +1,210 @@
+---
+title: "QiimeDataGenusboxplot"
+author: "Claire"
+date: "19/11/2021"
+output: html_document
+---
+
+```{r library}
+# Load packages 
+# > Cut the ones I didnt use
+library(DECIPHER)
+library(DESeq2)
+library(gridExtra)
+library(ggnewscale) 
+library(ggpubr)
+library(ggthemes)
+library(grid) 
+library(vegan)
+library(phyloseq)
+library(png)
+library(qgraph) 
+library(ggsignif)
+library(RColorBrewer)
+library(tidyverse)
+library(ggplot2)
+library(dabestr)
+library(ranacapa)
+```
+
+
+TRYING TO DO JUST CYCLE 1 First to see if I can run it.
+But if you want to run both cycles together then just change the metadata.txt import to metafileBothCycles.csv Ive added another coloumn known as cycle - cycle_one or cycle_two
+
+
+
+
+
+
+
+## Importing from Qiime
+# Import data from Qiime - feature table, OTU and taxonomy files
+# Make OTU ID the row names
+
+```{r}
+Tab <- read.delim("DataGit/feature_table_new.txt")
+colnames(Tab)  <- gsub("\\.", "-", colnames(Tab))
+row.names(Tab)<-Tab[[1]]
+write.table(Tab, file="Tab", sep='\t',col.names=TRUE, row.names=FALSE)
+```
+
+#Import in taxonomy
+#Open in excel, delete D_0__ etc with replace function
+```{r}
+taxonomy<- read.delim("DataGit/biom-taxonomy2.tsv")
+names(taxonomy) <- c("X-OTU-ID", "tax", "Confidence")
+row.names(taxonomy) <-taxonomy[[1]]
+taxonomy <- taxonomy[,(-3)]
+taxonomy <-  separate(taxonomy, tax, c("D0","D1", "D2", "D3", "D4", "D5", "D6","D7"), sep = ";", fill = "right")
+taxonomy <- taxonomy[,c(1:8)]
+write.table(taxonomy, file="taxonomy_new", sep='\t',col.names=TRUE, row.names=FALSE)
+```
+#Save as taxonomy2.csv
+```{r}
+taxonomy=read.csv("DataGit/taxonomy2.csv",sep=",",row.names=1)
+taxonomy <- cbind(taxonomy, ASV = paste0("ASV", sprintf("%04d", 1:nrow(taxonomy))))
+taxonomy=as.matrix(taxonomy)
+```
+#Import in otu table
+```{r}
+otu_table=read.csv("DataGit/Svtab_new2edit.csv",sep=",",row.names=1)
+otu_table=as.matrix(otu_table)
+```
+#Import the metatable
+#View (metatable) to check 
+```{r}
+metatable <- read.delim("DataGit/metadata.txt") 
+row.names(metatable) <- metatable[[1]]
+metatable<- metatable[,(-1)]
+META <- sample_data(metatable)
+```
+#Import taxonomy, otu table and metadata as phyloseq objects
+#Check that all are TRUE
+```{r}
+OTU=otu_table(otu_table,taxa_are_rows=TRUE)
+TAX=tax_table(taxonomy)
+sample_names(META) == sample_names(OTU)
+```
+
+#Create phyloseq object of the phyoseq data
+#Change the taxonomy header to Names instead of Dnumber
+#Check names are correct
+```{r}
+Genus<- phyloseq(OTU, TAX, META)
+Genus<- phyloseq(OTU, TAX, META)
+colnames(tax_table(Genus)) <- c(D0 = "Kingdom", D1 = "Phylum", D2 = "Class", 
+                              D3 = "Order", D4 = "Family", D5 = "Genus", D6 = "Species", ASV = "ASV")
+rank_names(Genus)
+```
+#Check the length of the taxa - total number of ASVs
+```{r}
+length(taxa_names(Genus))
+```
+
+#Filter phyloseq object to only include Bacteria, exclude Choloplast and Mitochondria from samples
+```{r}
+library("phyloseq")
+tog1 = subset_taxa(Genus, Kingdom =="Bacteria")
+tog1 <- prune_taxa(taxa_sums(tog1) > 0, tog1)
+tog1<-subset_taxa(tog1, (Order!="Chloroplast"))
+tog1<-subset_taxa(tog1, (Family!="Mitochondria"))
+```
+#Length check - reduces total taxa numbers from 1004 to 961 (minus 43)
+```{r}
+length(taxa_names(tog1))
+```
+
+CYCLE 1 ONLY - SIG NOT WORKING
+
+Genus boxplot
+```{r total abundance}
+total <-Genus
+total <-rarefy_even_depth(total,sample.size=5404, replace=FALSE, rngseed = 1)
+total <- subset_samples(total, sampling_time != "Cycle 2")
+total <- subset_samples(total, sampling_time != "Mock DNA")
+sample_data(total)$treatment<-factor(sample_data(total)$treatment,levels=c("Control","High_Copper","Low_Copper"))
+total <- prune_taxa(taxa_sums(total) > 0, total)
+total <- tax_glom(total, taxrank = 'Genus')
+total = subset_taxa(total, Genus=="Lactobacillus" | Genus=="Bartonella" | Genus=="Gilliamella" | Genus=="Snodgrassella" | Genus=="Frischella" | Genus=="Bifidobacterium" | Genus=="Commensalibacter")
+```
+
+#Melt and plot
+
+```{r}
+tot<-psmelt(total)
+neworder3 <- c("Bartonella","Lactobacillus","Gilliamella","Snodgrassella","Bifidobacterium","Commensalibacter","Frischella")
+library(plyr)
+tot <- arrange(transform(tot, Genus=factor(Genus,levels=neworder3)),Genus)
+a_mean <- tot %>%
+  group_by(Genus) %>%
+  summarize(mean_val = mean(Abundance))
+```
+
+```{r}
+G<-ggplot(data = tot, aes(x = treatment, y = Abundance))+geom_boxplot(aes(fill=Genus),alpha=0.5,lwd=0.7, position = position_dodge(width = 0.3), width=0.45,outlier.shape = NA) + geom_jitter(aes(color = Genus), height = 0, width = .1)+geom_hline(data= a_mean, aes(yintercept=mean_val), width=5,size=1,linetype="dashed")+
+  labs(x = "", y = "Abundance\n")+theme_bw()+facet_grid(Genus~treatment, scales = "free")
+```
+
+```{r}
+sigFunc = function(x){
+  if(x < 0.001){"***"}
+  else if(x < 0.01){"**"}
+  else if(x < 0.05){"*"}
+  else{NA}}
+G<-G+theme_bw()+
+  geom_signif(comparisons=list(c("Control", "Low_copper")),tip_length = 0.03,vjust=1.3, color="grey20", size=1.1,map_signif_level=sigFunc, textsize=9, test = wilcox.test,step_increase = 0.2)
+print(G)
+```
+
+
+
+
+TESTING TO MAKE PLOT WITH BOTH CYCLES 
+
+Barplots
+## Core taxa abundance
+```{r total abundance}
+tog <-tog1
+tog <- rarefy_even_depth(tog,sample.size=5404, replace=FALSE, rngseed = 1)
+tog=subset_samples(sampling_time != "Mock DNA")
+sample_data(tog)$treatment<-factor(sample_data(Comm)$treatment,levels=c("Control","High_Copper","Low_Copper"))
+tog <- prune_taxa(taxa_sums(tog) > 0, tog)
+tog <- tax_glom(tog, taxrank = 'Genus')
+tog = subset_taxa(tog, Genus=="Lactobacillus" | Genus=="Bartonella" | Genus=="Gilliamella" | Genus=="Snodgrassella" | Genus=="Frischella" | Genus=="Bifidobacterium" | Genus=="Commensalibacter")
+
+
+#Melt and plot
+mtog<-psmelt(tog)
+levels2=c("cycle_one","cycle_two")
+change <- c("Cycle one","Cycle two")
+melt2 <- arrange(transform(melt2, cycle=factor(cycle,levels=levels2,labels=change)),cycle)
+neworder3 <- c("Bartonella","Lactobacillus","Gilliamella","Snodgrassella","Bifidobacterium","Commensalibacter","Frischella")
+melt4 <- arrange(transform(melt2, Genus=factor(Genus,levels=neworder3)),Genus)
+a_mean <- melt4 %>%
+  group_by(treatment3,Genus,cycle) %>%
+  summarize(mean_val = mean(Abundance))
+a_mean2<-subset(a_mean, treatment3 =="Control")
+print(a_mean2)
+sigFunc = function(x){
+  if(x < 0.001){"***"}
+  else if(x < 0.01){"**"}
+  else if(x < 0.05){"*"}
+  else{NA}}
+p<-ggplot(data = melt4, aes(x = treatment3, y = Abundance)) +
+  geom_boxplot(aes(fill=Genus),alpha=0.5,lwd=0.7, position = position_dodge(width = 0.3), width=0.45,outlier.shape = NA) + geom_jitter(aes(color = Genus), height = 0, width = .1)+geom_hline(data= a_mean2, aes(yintercept=mean_val), width=5,size=1,linetype="dashed")+
+  labs(x = "", y = "Abundance\n")+
+  facet_grid(Genus~cycle, scales = "free")+theme_bw()+
+  geom_signif(comparisons=list(c("Control", "Low_copper")),tip_length = 0.03,vjust=1.3, color="grey20", size=1.1,map_signif_level=sigFunc, textsize=9, test = wilcox.test,step_increase = 0.2)
+p<-p+ theme(legend.position="right")+ylab("Total abundance")
+p<-p+ theme(legend.text=element_text(size=29, face = "italic"))+theme(legend.key = element_rect(color = NA, fill = NA),legend.key.size = unit(0.9, "cm"))+theme(legend.title = element_blank())
+abu<-p +theme(strip.text.x = element_text(size=25,face="bold",color = "grey 35"))+theme(strip.background =element_rect(fill="white", color="white"))
+cycle<-abu+theme(axis.title.y = element_text(size=25, face="bold"))+theme(axis.text.y = element_text(size=20, face="bold"))+theme(axis.text.x = element_text(size=25, angle=90,face="bold"))+theme(axis.title.x = element_blank())+ theme(strip.text.y = element_blank())
+```
+
+
+
+
+
+
+
+
